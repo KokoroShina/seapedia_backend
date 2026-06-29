@@ -32,6 +32,11 @@ class User extends Authenticatable
     protected $fillable = ['username', 'email' , 'password'];
     protected $hidden = ['password' , 'remember_token'];
 
+    public function addresses()
+    {
+        return $this->hasMany(Address::class);
+    }
+
     public function roles()
     {
         return $this->belongsToMany(Role::class, 'user_roles');

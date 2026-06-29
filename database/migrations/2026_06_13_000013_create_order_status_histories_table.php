@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('status');
             $table->text('note')->nullable();
             $table->timestamp('created_at')->nullable();
+            $table->timestamp('updated_at')->nullable();
         });
     }
 

@@ -10,7 +10,10 @@ Dokumentasi ini menjelaskan endpoints REST API publik SEAPEDIA yang **tidak memb
 | `GET` | `/api/stores/{id}` | Mengambil detail satu toko beserta daftar produknya |
 | `GET` | `/api/products` | Mengambil daftar produk dengan filter toko & pencarian |
 | `GET` | `/api/products/{id}` | Mengambil detail satu produk beserta informasi tokonya |
+| `GET` | `/api/categories` | Mengambil daftar kategori aktif (untuk dropdown) |
 | `GET` | `/api/reviews` | Mengambil seluruh review aplikasi (terbaru dulu, paginasi 15) |
+| `GET` | `/api/payment-methods` | Mengambil daftar metode pembayaran dari DuitKu (public) |
+| `GET` | `/api/wallet/check-status/{merchantOrderId}` | Mengecek status transaksi dari DuitKu (public) |
 
 ---
 
@@ -200,7 +203,110 @@ Mengambil detail satu produk beserta info toko terkait (relasi `store`, hanya ko
 
 ---
 
-## 5. List App Reviews
+## 5. List Kategori
+Mengambil semua kategori aktif untuk dropdown di frontend (diurutkan berdasarkan nama).
+
+* **URL:** `/api/categories`
+* **Method:** `GET`
+
+### Contoh Response Sukses (200 OK)
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "name": "Makanan",
+      "slug": "makanan",
+      "icon": "🍔"
+    },
+    {
+      "id": 2,
+      "name": "Minuman",
+      "slug": "minuman",
+      "icon": "🥤"
+    }
+  ]
+}
+```
+
+---
+
+## 6. List Payment Methods (DuitKu)
+Mengambil daftar metode pembayaran yang tersedia dari DuitKu payment gateway.
+
+* **URL:** `/api/payment-methods`
+* **Method:** `GET`
+
+### Contoh Response Sukses (200 OK)
+```json
+{
+  "success": true,
+  "message": "Payment methods berhasil diambil",
+  "data": [
+    {
+      "code": "VC",
+      "name": "BCA Virtual Account",
+      "image": "https://images.duitku.com/hotlink-ok/BCA.PNG",
+      "fee": 0
+    },
+    {
+      "code": "QJ",
+      "name": "QRIS",
+      "image": "https://images.duitku.com/hotlink-ok/QRIS.PNG",
+      "fee": 0
+    }
+  ]
+}
+```
+
+**Kode Payment Method Populer:**
+| Kode | Metode Pembayaran |
+|------|-------------------|
+| VC | BCA Virtual Account |
+| BNIVA | BNI Virtual Account |
+| BRIVA | BRI Virtual Account |
+| MANDIRI | Mandiri Bill Payment |
+| QJ | QRIS |
+| DA | DANA |
+| SP | ShopeePay |
+| OV | OVO |
+
+---
+
+## 7. Check Transaction Status (DuitKu - Public)
+Mengecek status transaksi langsung dari DuitKu (tanpa autentikasi).
+
+* **URL:** `/api/wallet/check-status/{merchantOrderId}`
+* **Method:** `GET`
+
+### Contoh Response Sukses (200 OK)
+```json
+{
+  "success": true,
+  "message": "Status transaksi berhasil diambil",
+  "data": {
+    "merchantOrderId": "T1-1750320000-a1b2c3",
+    "reference": "REF123456",
+    "amount": 100000,
+    "fee": 0,
+    "statusCode": "00",
+    "statusMessage": "SUCCESS"
+  }
+}
+```
+
+**Status Code DuitKu:**
+| Code | Description |
+|------|-------------|
+| 00 | SUCCESS - Pembayaran berhasil |
+| 01 | PENDING - Menunggu pembayaran |
+| 02 | FAILED - Pembayaran gagal |
+| 03 | EXPIRED - Pembayaran kadaluarsa |
+
+---
+
+## 8. List App Reviews
 Mengambil semua review aplikasi diurutkan dari yang terbaru (`created_at DESC`).
 
 * **URL:** `/api/reviews`

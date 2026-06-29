@@ -3,16 +3,14 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\StoreVoucherRequest;
+use App\Http\Requests\Admin\UpdateVoucherRequest;
 use App\Models\Voucher;
-use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 
 class VoucherController extends Controller
 {
-    /**
-     * Display a listing of all vouchers (paginated, newest first)
-     * GET /api/admin/vouchers
-     */
-    public function index()
+    public function index(): JsonResponse
     {
         $vouchers = Voucher::orderByDesc('created_at')
             ->paginate(15);
@@ -24,22 +22,13 @@ class VoucherController extends Controller
         ]);
     }
 
-    /**
-     * Store a newly created voucher
-     * POST /api/admin/vouchers
-     */
-    public function store(Request $request)
+    public function store(StoreVoucherRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'code' => 'required|string|max:50|unique:vouchers,code',
-            'value' => 'required|numeric|min:1|max:100',
-            'expired_at' => 'required|date|after:now',
-            'max_usage' => 'required|integer|min:1',
-        ]);
+        $validated = $request->validated();
 
         $voucher = Voucher::create([
             'code' => $validated['code'],
-            'type' => 'percentage', // Selalu percentage untuk saat ini
+            'type' => 'percentage',
             'value' => $validated['value'],
             'expired_at' => $validated['expired_at'],
             'max_usage' => $validated['max_usage'],
@@ -53,11 +42,7 @@ class VoucherController extends Controller
         ], 201);
     }
 
-    /**
-     * Display the specified voucher
-     * GET /api/admin/vouchers/{id}
-     */
-    public function show(int $id)
+    public function show(int $id): JsonResponse
     {
         $voucher = Voucher::find($id);
 
@@ -75,11 +60,7 @@ class VoucherController extends Controller
         ]);
     }
 
-    /**
-     * Update the specified voucher
-     * PUT /api/admin/vouchers/{id}
-     */
-    public function update(Request $request, int $id)
+    public function update(UpdateVoucherRequest $request, int $id): JsonResponse
     {
         $voucher = Voucher::find($id);
 
@@ -90,13 +71,7 @@ class VoucherController extends Controller
             ], 404);
         }
 
-        $validated = $request->validate([
-            'code' => 'sometimes|required|string|max:50|unique:vouchers,code,' . $id,
-            'value' => 'sometimes|required|numeric|min:1|max:100',
-            'expired_at' => 'sometimes|required|date|after:now',
-            'max_usage' => 'sometimes|required|integer|min:1',
-        ]);
-
+        $validated = $request->validated();
         $voucher->update($validated);
 
         return response()->json([
@@ -106,11 +81,7 @@ class VoucherController extends Controller
         ]);
     }
 
-    /**
-     * Remove the specified voucher
-     * DELETE /api/admin/vouchers/{id}
-     */
-    public function destroy(int $id)
+    public function destroy(int $id): JsonResponse
     {
         $voucher = Voucher::find($id);
 

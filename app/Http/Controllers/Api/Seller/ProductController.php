@@ -3,21 +3,22 @@
 namespace App\Http\Controllers\Api\Seller;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Seller\StoreProductRequest;
+use App\Http\Requests\Seller\UpdateProductRequest;
 use App\Models\Product;
 use App\Models\Store;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class ProductController extends Controller
 {
-    // Helper ambil toko milik user yang login
     private function getOwnedStore(Request $request)
     {
         return Store::where('user_id', $request->user()->id)->first();
     }
 
-    // List produk milik toko sendiri
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
         $store = $this->getOwnedStore($request);
 
@@ -39,8 +40,7 @@ class ProductController extends Controller
         ]);
     }
 
-    // Tambah produk baru
-    public function store(Request $request)
+    public function store(StoreProductRequest $request): JsonResponse
     {
         $store = $this->getOwnedStore($request);
 
@@ -51,13 +51,7 @@ class ProductController extends Controller
             ], 404);
         }
 
-        $request->validate([
-            'name'        => 'required|string|max:150',
-            'description' => 'nullable|string',
-            'price'       => 'required|numeric|min:0',
-            'stock'       => 'required|integer|min:0',
-            'image'       => 'nullable|image|max:2048',
-        ]);
+        $validated = $request->validated();
 
         $imagePath = null;
         if ($request->hasFile('image')) {
@@ -66,10 +60,10 @@ class ProductController extends Controller
 
         $product = Product::create([
             'store_id'    => $store->id,
-            'name'        => $request->name,
-            'description' => $request->description,
-            'price'       => $request->price,
-            'stock'       => $request->stock,
+            'name'        => $validated['name'],
+            'description' => $validated['description'] ?? null,
+            'price'       => $validated['price'],
+            'stock'       => $validated['stock'],
             'image'       => $imagePath,
         ]);
 
@@ -80,8 +74,7 @@ class ProductController extends Controller
         ], 201);
     }
 
-    // Detail produk milik sendiri
-    public function show(Request $request, $id)
+    public function show(Request $request, $id): JsonResponse
     {
         $store = $this->getOwnedStore($request);
         $product = Product::where('id', $id)->where('store_id', $store?->id)->first();
@@ -100,8 +93,7 @@ class ProductController extends Controller
         ]);
     }
 
-    // Update produk milik sendiri
-    public function update(Request $request, $id)
+    public function update(UpdateProductRequest $request, $id): JsonResponse
     {
         $store = $this->getOwnedStore($request);
         $product = Product::where('id', $id)->where('store_id', $store?->id)->first();
@@ -113,13 +105,7 @@ class ProductController extends Controller
             ], 404);
         }
 
-        $request->validate([
-            'name'        => 'sometimes|required|string|max:150',
-            'description' => 'nullable|string',
-            'price'       => 'sometimes|required|numeric|min:0',
-            'stock'       => 'sometimes|required|integer|min:0',
-            'image'       => 'nullable|image|max:2048',
-        ]);
+        $validated = $request->validated();
 
         if ($request->hasFile('image')) {
             if ($product->image) {
@@ -138,8 +124,7 @@ class ProductController extends Controller
         ]);
     }
 
-    // Hapus produk milik sendiri
-    public function destroy(Request $request, $id)
+    public function destroy(Request $request, $id): JsonResponse
     {
         $store = $this->getOwnedStore($request);
         $product = Product::where('id', $id)->where('store_id', $store?->id)->first();

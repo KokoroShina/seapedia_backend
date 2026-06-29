@@ -18,7 +18,8 @@ class StoreController extends Controller
                 'id' => $store->id,
                 'name' => $store->name,
                 'description' => $store->description,
-                'image' => $store->image,
+                'image' => $store->image ? '/storage/' . $store->image : null,
+                'image_url' => $store->imageUrl,
             ];
         });
 

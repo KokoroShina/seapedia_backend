@@ -114,4 +114,18 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | OTP Configuration for Password Reset
+    |--------------------------------------------------------------------------
+    |
+    | These options configure the OTP (One-Time Password) behavior for the
+    | password reset feature. OTP is sent via email for verification.
+    |
+    */
+
+    'otp_expires_minutes' => env('AUTH_OTP_EXPIRES_MINUTES', 15),
+    'otp_length' => env('AUTH_OTP_LENGTH', 6),
+    'otp_max_attempts' => env('AUTH_OTP_MAX_ATTEMPTS', 5),
+
 ];

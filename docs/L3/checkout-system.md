@@ -15,13 +15,15 @@ POST /api/checkout
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | address_id | integer | Yes | ID alamat dari tabel addresses |
-| delivery_method | string | Yes | Metode pengiriman |
+| delivery_method | string | Yes | Metode pengiriman (`instant`, `next_day`, `regular`) |
+| voucher_code | string | No | Kode voucher (opsional) |
 
 **Contoh Request:**
 ```json
 {
   "address_id": 1,
-  "delivery_method": "instant"
+  "delivery_method": "instant",
+  "voucher_code": "DISKON10"
 }
 ```
 

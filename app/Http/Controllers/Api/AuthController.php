@@ -3,54 +3,58 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\LoginRequest;
+use App\Http\Requests\Auth\RegisterRequest;
+use App\Http\Requests\Auth\SwitchRoleRequest;
 use App\Models\Role;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
-    public function register(Request $request)
+    public function register(RegisterRequest $request): JsonResponse
     {
-        $request->validate([
-            'username' => 'required|string|max:100|unique:users',
-            'email'    => 'required|email|max:150|unique:users',
-            'password' => 'required|string|min:8|confirmed',
-            'role'     => 'required|in:buyer,seller,driver',
-        ]);
+        $validated = $request->validated();
 
         $user = User::create([
-            'username' => $request->username,
-            'email'    => $request->email,
-            'password' => Hash::make($request->password),
+            'username' => $validated['username'],
+            'email'    => $validated['email'],
+            'password' => Hash::make($validated['password']),
         ]);
 
-        $role = Role::where('name', $request->role)->first();
+        $role = Role::where('name', $validated['role'])->first();
+        
+        if (!$role) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Role tidak ditemukan. Pastikan data role sudah ada di database.',
+            ], 422);
+        }
+        
         $user->roles()->attach($role->id);
 
-        $token = $user->createToken('auth_token', [$request->role])->plainTextToken;
+        $token = $user->createToken('auth_token', [$validated['role']])->plainTextToken;
 
         return response()->json([
             'success' => true,
             'message' => 'Registrasi berhasil',
             'data'    => [
                 'user'         => $user,
-                'active_role'  => $request->role,
+                'active_role'  => $validated['role'],
                 'token'        => $token,
             ],
         ], 201);
     }
 
-    public function login(Request $request)
+    public function login(LoginRequest $request): JsonResponse
     {
-        $request->validate([
-            'email'    => 'required|email',
-            'password' => 'required|string',
-        ]);
+        $validated = $request->validated();
 
-        $user = User::with('roles')->where('email', $request->email)->first();
+        $user = User::with('roles')->where('email', $validated['email'])->first();
 
-        if (!$user || !Hash::check($request->password, $user->password)) {
+        if (!$user || !Hash::check($validated['password'], $user->password)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Email atau password salah',
@@ -74,7 +78,7 @@ class AuthController extends Controller
         ]);
     }
 
-    public function logout(Request $request)
+    public function logout(Request $request): JsonResponse
     {
         $request->user()->currentAccessToken()->delete();
 
@@ -84,33 +88,29 @@ class AuthController extends Controller
         ]);
     }
 
-    public function switchRole(Request $request)
+    public function switchRole(SwitchRoleRequest $request): JsonResponse
     {
-        $request->validate([
-            'role' => 'required|in:buyer,seller,driver',
-        ]);
+        $validated = $request->validated();
 
         $user = $request->user();
         $roles = $user->roles->pluck('name')->toArray();
 
-        if (!in_array($request->role, $roles)) {
+        if (!in_array($validated['role'], $roles)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Role tidak ditemukan',
             ], 403);
         }
 
-        // Invalidate token lama
         $user->currentAccessToken()->delete();
 
-        // Issue token baru dengan role baru
-        $token = $user->createToken('auth_token', [$request->role])->plainTextToken;
+        $token = $user->createToken('auth_token', [$validated['role']])->plainTextToken;
 
         return response()->json([
             'success' => true,
             'message' => 'Role berhasil diganti',
             'data'    => [
-                'active_role' => $request->role,
+                'active_role' => $validated['role'],
                 'token'       => $token,
             ],
         ]);

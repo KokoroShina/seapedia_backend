@@ -170,11 +170,14 @@ Fitur ini memungkinkan user dengan role **seller** untuk membuat dan mengelola t
 **Request (form-data):**
 | Key | Type | Value |
 |---|---|---|
+| category_id | text | 1 |
 | name | text | Kabel USB-C |
 | description | text | Kabel data 1 meter |
 | price | text | 25000 |
 | stock | text | 100 |
 | image | file | (opsional) |
+
+**Catatan:** `category_id` WAJIB diisi dan harus ada di tabel `categories`.
 
 **Response 201:**
 ```json
@@ -184,6 +187,7 @@ Fitur ini memungkinkan user dengan role **seller** untuk membuat dan mengelola t
   "data": {
     "id": 1,
     "store_id": 1,
+    "category_id": 1,
     "name": "Kabel USB-C",
     "price": "25000.00",
     "stock": 100
@@ -193,6 +197,7 @@ Fitur ini memungkinkan user dengan role **seller** untuk membuat dan mengelola t
 
 **Test case yang perlu dicoba:**
 - ✅ Tambah produk tanpa punya toko dulu → harus gagal (404), suruh bikin toko dulu
+- ✅ Tambah produk tanpa `category_id` → harus gagal validasi (422)
 - ✅ Tambah produk dengan `price` negatif → harus gagal validasi (422)
 - ✅ Tambah produk dengan `stock` desimal (misal `1.5`) → harus gagal validasi (422)
 
@@ -258,11 +263,18 @@ Fitur ini memungkinkan user dengan role **seller** untuk membuat dan mengelola t
 
 ## Checklist Testing Keseluruhan L2
 
-- [ ] Seller bisa buat toko (sekali doang)
-- [ ] Seller tidak bisa buat toko kedua
-- [ ] Seller bisa update toko sendiri (dengan & tanpa ganti gambar)
-- [ ] Seller bisa CRUD produk miliknya sendiri
-- [ ] Seller **tidak bisa** akses/edit/hapus produk milik seller lain (cek pakai 2 akun seller berbeda)
-- [ ] User dengan role `buyer`/`driver` **tidak bisa** akses endpoint `/api/seller/*` sama sekali — cek ini juga, soalnya middleware sekarang cuma `auth:sanctum`, **belum cek role**
+- [✅] Seller bisa buat toko (sekali doang)
+- [✅] Seller tidak bisa buat toko kedua
+- [✅] Seller bisa update toko sendiri (dengan & tanpa ganti gambar)
+- [✅] Seller bisa CRUD produk miliknya sendiri
+- [✅] Seller **tidak bisa** akses/edit/hapus produk milik seller lain (cek pakai 2 akun seller berbeda)
+- [✅] User dengan role `buyer`/`driver` **tidak bisa** akses endpoint `/api/seller/*` sama sekali — cek ini juga, soalnya middleware sekarang cuma `auth:sanctum`, **belum cek role**
+
+### Tambahan Testing Category
+
+- [✅] List categories (public) dapat diakses tanpa login
+- [✅] Seller harus pilih `category_id` saat create produk
+- [✅] Produk dengan `category_id` invalid → validasi error
+- [✅] Admin dapat CRUD kategori di `/api/admin/categories`
 
 > ⚠️ **Catatan penting:** Endpoint `/api/seller/*` saat ini hanya dilindungi `auth:sanctum` (harus login), **belum ada pengecekan role**. Artinya user dengan role `buyer` yang login pun masih bisa akses endpoint ini. Kalau mau benar-benar dibatasi hanya untuk role `seller`, perlu middleware tambahan (misal cek `tokenCan('seller')`). Diskusikan ini sebelum lanjut ke level berikutnya jika ingin diperbaiki.

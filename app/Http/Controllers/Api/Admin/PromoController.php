@@ -3,16 +3,14 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\StorePromoRequest;
+use App\Http\Requests\Admin\UpdatePromoRequest;
 use App\Models\Promo;
-use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 
 class PromoController extends Controller
 {
-    /**
-     * Display a listing of all promos (paginated, newest first)
-     * GET /api/admin/promos
-     */
-    public function index()
+    public function index(): JsonResponse
     {
         $promos = Promo::orderByDesc('created_at')
             ->paginate(15);
@@ -24,21 +22,13 @@ class PromoController extends Controller
         ]);
     }
 
-    /**
-     * Store a newly created promo
-     * POST /api/admin/promos
-     */
-    public function store(Request $request)
+    public function store(StorePromoRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'value' => 'required|numeric|min:1|max:100',
-            'min_purchase' => 'required|numeric|min:0',
-            'expired_at' => 'required|date|after:now',
-        ]);
+        $validated = $request->validated();
 
         $promo = Promo::create([
-            'code' => null, // Promo tidak pakai kode, selalu null
-            'type' => 'percentage', // Selalu percentage untuk saat ini
+            'code' => null,
+            'type' => 'percentage',
             'value' => $validated['value'],
             'min_purchase' => $validated['min_purchase'],
             'expired_at' => $validated['expired_at'],
@@ -51,11 +41,7 @@ class PromoController extends Controller
         ], 201);
     }
 
-    /**
-     * Display the specified promo
-     * GET /api/admin/promos/{id}
-     */
-    public function show(int $id)
+    public function show(int $id): JsonResponse
     {
         $promo = Promo::find($id);
 
@@ -73,11 +59,7 @@ class PromoController extends Controller
         ]);
     }
 
-    /**
-     * Update the specified promo
-     * PUT /api/admin/promos/{id}
-     */
-    public function update(Request $request, int $id)
+    public function update(UpdatePromoRequest $request, int $id): JsonResponse
     {
         $promo = Promo::find($id);
 
@@ -88,12 +70,7 @@ class PromoController extends Controller
             ], 404);
         }
 
-        $validated = $request->validate([
-            'value' => 'sometimes|required|numeric|min:1|max:100',
-            'min_purchase' => 'sometimes|required|numeric|min:0',
-            'expired_at' => 'sometimes|required|date|after:now',
-        ]);
-
+        $validated = $request->validated();
         $promo->update($validated);
 
         return response()->json([
@@ -103,11 +80,7 @@ class PromoController extends Controller
         ]);
     }
 
-    /**
-     * Remove the specified promo
-     * DELETE /api/admin/promos/{id}
-     */
-    public function destroy(int $id)
+    public function destroy(int $id): JsonResponse
     {
         $promo = Promo::find($id);
 

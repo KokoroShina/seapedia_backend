@@ -126,7 +126,130 @@ Mengganti active role. Token lama otomatis di-invalidate, token baru di-issue de
 
 > ⚠️ Setelah switch role, **frontend wajib mengganti token yang disimpan** (localStorage/cookie) dengan token baru dari response. Token lama sudah tidak valid.
 
-## Cara Mengecek Active Role di Backend
+---
+
+## 4. Forgot Password (OTP)
+
+### 4.1 Send OTP
+
+**Endpoint:** `POST /api/auth/forgot-password/send-otp`
+
+Kirim kode OTP 6 digit ke email user.
+
+**Request:**
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "message": "Kode OTP telah dikirim ke email Anda.",
+  "data": {
+    "expires_at": "2026-06-25T09:15:00+07:00",
+    "expires_in_minutes": 15
+  }
+}
+```
+
+**Catatan:** Email enumeration prevention — response tetap sukses meskipun email tidak terdaftar.
+
+### 4.2 Verify OTP
+
+**Endpoint:** `POST /api/auth/forgot-password/verify-otp`
+
+Verifikasi kode OTP.
+
+**Request:**
+```json
+{
+  "email": "user@example.com",
+  "otp": "847291"
+}
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "message": "Kode OTP terverifikasi. Silakan reset password Anda."
+}
+```
+
+### 4.3 Reset Password
+
+**Endpoint:** `POST /api/auth/forgot-password/reset-password`
+
+Reset password dengan OTP yang sudah diverifikasi.
+
+**Request:**
+```json
+{
+  "email": "user@example.com",
+  "otp": "847291",
+  "password": "NewPassword123",
+  "password_confirmation": "NewPassword123"
+}
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "message": "Password berhasil direset. Silakan login dengan password baru Anda."
+}
+```
+
+**Catatan Keamanan:**
+- OTP expired setelah 15 menit (konfigurasi di `config/auth.php`)
+- Setiap request OTP baru akan invalidate semua OTP lama
+- Password harus minimal 8 karakter dengan mixed case dan angka
+
+---
+
+## 5. Endpoint Review Baru
+
+### POST /api/reviews
+
+**Endpoint:** `POST /api/reviews`
+
+Membuat review baru (semua role yang login boleh akses).
+
+**Headers:** `Authorization: Bearer {token}`
+
+**Request:**
+```json
+{
+  "rating": 5,
+  "comment": "Aplikasi sangat bagus!"
+}
+```
+
+**Validation:**
+- `rating`: required, integer, min 1, max 5
+- `comment`: required, string, max 1000, disanitasi XSS dengan `strip_tags()`
+
+**Response 201:**
+```json
+{
+  "success": true,
+  "message": "Review berhasil ditambahkan",
+  "data": {
+    "id": 1,
+    "reviewer_name": "johndoe",
+    "rating": 5,
+    "comment": "Aplikasi sangat bagus!",
+    "created_at": "2026-06-25T09:00:00+07:00"
+  }
+}
+```
+
+---
+
+## Catatan untuk Frontend (Next.js)
 
 Karena active role disimpan di token ability, cara cek di controller/middleware lain:
 

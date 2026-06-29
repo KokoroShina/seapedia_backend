@@ -3,14 +3,16 @@
 namespace App\Http\Controllers\Api\Seller;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Seller\StoreStoreRequest;
+use App\Http\Requests\Seller\UpdateStoreRequest;
 use App\Models\Store;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class StoreController extends Controller
 {
-    // Lihat toko milik seller yang login
-    public function show(Request $request)
+    public function show(Request $request): JsonResponse
     {
         $store = Store::where('user_id', $request->user()->id)->first();
 
@@ -28,8 +30,7 @@ class StoreController extends Controller
         ]);
     }
 
-    // Bikin toko baru (cuma sekali per seller)
-    public function store(Request $request)
+    public function store(StoreStoreRequest $request): JsonResponse
     {
         $existing = Store::where('user_id', $request->user()->id)->first();
 
@@ -40,11 +41,7 @@ class StoreController extends Controller
             ], 422);
         }
 
-        $request->validate([
-            'name'        => 'required|string|max:150',
-            'description' => 'nullable|string',
-            'image'       => 'nullable|image|max:2048',
-        ]);
+        $validated = $request->validated();
 
         $imagePath = null;
         if ($request->hasFile('image')) {
@@ -53,8 +50,8 @@ class StoreController extends Controller
 
         $store = Store::create([
             'user_id'     => $request->user()->id,
-            'name'        => $request->name,
-            'description' => $request->description,
+            'name'        => $validated['name'],
+            'description' => $validated['description'] ?? null,
             'image'       => $imagePath,
         ]);
 
@@ -65,8 +62,7 @@ class StoreController extends Controller
         ], 201);
     }
 
-    // Update toko milik sendiri
-    public function update(Request $request)
+    public function update(UpdateStoreRequest $request): JsonResponse
     {
         $store = Store::where('user_id', $request->user()->id)->first();
 
@@ -77,11 +73,7 @@ class StoreController extends Controller
             ], 404);
         }
 
-        $request->validate([
-            'name'        => 'sometimes|required|string|max:150',
-            'description' => 'nullable|string',
-            'image'       => 'nullable|image|max:2048',
-        ]);
+        $validated = $request->validated();
 
         if ($request->hasFile('image')) {
             if ($store->image) {

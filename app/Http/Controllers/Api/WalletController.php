@@ -3,25 +3,21 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Wallet\TopupRequest;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Services\DuitkuService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-
-/* @noinspection PhpParamsInspection */
+use Illuminate\Support\Facades\Log;
 
 class WalletController extends Controller
 {
-    /** @var DuitkuService */
-    protected $duitkuService;
+    public function __construct(
+        private DuitkuService $duitkuService
+    ) {}
 
-    public function __construct(DuitkuService $duitkuService)
-    {
-        $this->duitkuService = $duitkuService;
-    }
-
-    // Helper: ambil atau buat wallet user
     private function getOrCreateWallet(int $userId): Wallet
     {
         return Wallet::firstOrCreate(
@@ -30,35 +26,37 @@ class WalletController extends Controller
         );
     }
 
-    // Lihat saldo wallet
-    public function show(Request $request)
+    public function show(Request $request): JsonResponse
     {
         $wallet = $this->getOrCreateWallet($request->user()->id);
+
+        $transactions = WalletTransaction::where('wallet_id', $wallet->id)
+            ->orderBy('created_at', 'desc')
+            ->limit(20)
+            ->get();
 
         return response()->json([
             'success' => true,
             'message' => 'Saldo wallet berhasil diambil',
-            'data' => $wallet,
+            'data' => [
+                'id' => $wallet->id,
+                'balance' => $wallet->balance,
+                'transactions' => $transactions,
+            ],
         ]);
     }
 
-    // Request top-up via DuitKu
-    public function topup(Request $request)
+    public function topup(TopupRequest $request): JsonResponse
     {
-        $request->validate([
-            'amount' => 'required|numeric|min:10000',
-            'payment_method' => 'required|string',
-        ]);
+        $validated = $request->validated();
 
         $user = $request->user();
         $wallet = $this->getOrCreateWallet($user->id);
-        $amount = (int) $request->amount;
-        $paymentMethod = strtoupper($request->payment_method);
+        $amount = (int) $validated['amount'];
+        $paymentMethod = strtoupper($validated['payment_method']);
 
-        // Generate merchantOrderId unik
         $merchantOrderId = $this->duitkuService->generateMerchantOrderId($user->id);
 
-        // Buat transaksi di DuitKu
         $duitkuResponse = $this->duitkuService->createTransaction(
             $amount,
             $merchantOrderId,
@@ -68,24 +66,22 @@ class WalletController extends Controller
             $user->phone_number ?? null
         );
 
-        // Cek apakah request ke DuitKu berhasil
-        if (!isset($duitkuResponse['success']) || $duitkuResponse['success'] !== true) {
-            // DuitKu mungkin return responseCode != '00' sebagai error
-            if (isset($duitkuResponse['responseCode']) && $duitkuResponse['responseCode'] !== '00') {
-                return response()->json([
-                    'success' => false,
-                    'message' => $duitkuResponse['responseMessage'] ?? 'Gagal membuat transaksi di DuitKu',
-                ], 400);
-            }
-
-            // Jika tidak ada responseCode atau success flag, berarti error lain
+        // DuitKu returns statusCode: "00" for success
+        if (isset($duitkuResponse['statusCode']) && $duitkuResponse['statusCode'] !== '00') {
             return response()->json([
                 'success' => false,
-                'message' => $duitkuResponse['message'] ?? 'Gagal menghubungi server DuitKu',
+                'message' => $duitkuResponse['statusMessage'] ?? $duitkuResponse['Message'] ?? 'Gagal membuat transaksi di DuitKu',
+                'error_code' => $duitkuResponse['statusCode'] ?? null,
+            ], 400);
+        }
+
+        if (!isset($duitkuResponse['paymentUrl']) && !isset($duitkuResponse['vaNumber'])) {
+            return response()->json([
+                'success' => false,
+                'message' => $duitkuResponse['statusMessage'] ?? $duitkuResponse['Message'] ?? 'Gagal membuat transaksi di DuitKu',
             ], 500);
         }
 
-        // Simpan record transaksi dengan status pending
         WalletTransaction::create([
             'wallet_id'          => $wallet->id,
             'type'               => 'topup',
@@ -96,7 +92,6 @@ class WalletController extends Controller
             'description'        => 'Top-up via DuitKu - Menunggu pembayaran',
         ]);
 
-        // Siapkan response untuk frontend
         $paymentData = [
             'merchantOrderId'   => $merchantOrderId,
             'reference'         => $duitkuResponse['reference'] ?? null,
@@ -104,7 +99,6 @@ class WalletController extends Controller
             'status'            => 'pending',
         ];
 
-        // Tambahkan data sesuai metode pembayaran
         if (isset($duitkuResponse['paymentUrl'])) {
             $paymentData['paymentUrl'] = $duitkuResponse['paymentUrl'];
         }
@@ -124,71 +118,110 @@ class WalletController extends Controller
         ]);
     }
 
-    // Callback dari DuitKu (PUBLIC - tanpa auth:sanctum)
     public function callback(Request $request)
     {
-        // Ambil data dari callback DuitKu
+        // Log SEMUA input yang masuk — penting untuk debugging
+        Log::info('DuitKu Callback RAW Input', $request->all());
+
+        // Ambil semua parameter — DuitKu bisa kirim dengan nama field berbeda
         $merchantCode = $request->input('merchantCode');
-        $amount = (int) $request->input('amount');
+        $amount = $request->input('amount');  // jangan cast dulu
         $merchantOrderId = $request->input('merchantOrderId');
         $signature = $request->input('signature');
-        $resultCode = $request->input('resultCode');
+        // resultCode bisa beda case / nama
+        $resultCode = $request->input('resultCode')
+            ?? $request->input('result_code')
+            ?? $request->input('statusCode')
+            ?? $request->input('status_code')
+            ?? null;
 
-        // Validasi signature
+        // Additional fields (nullable — tidak perlu untuk proses utama)
+        $reference = $request->input('reference');
+        $paymentMethod = $request->input('paymentCode') ?? $request->input('paymentMethod');
+        $issuerCode = $request->input('issuerCode');
+        $settlementDate = $request->input('settlementDate');
+
+        Log::info('DuitKu Callback Parsed', [
+            'merchantCode' => $merchantCode,
+            'amount' => $amount,
+            'merchantOrderId' => $merchantOrderId,
+            'resultCode' => $resultCode,
+            'signature' => $signature,
+        ]);
+
+        // Validasi signature — callback pakai format MID + AMOUNT + OID (berbeda dari inquiry)
         $apiKey = config('duitku.api_key');
-        if (!$this->duitkuService->validateSignature($merchantCode, $amount, $merchantOrderId, $apiKey, $signature)) {
-            // Signature tidak valid - respond OK untuk stop retry dari DuitKu
+        $amountInt = (int) $amount;
+        if (!$this->duitkuService->validateCallbackSignature($merchantCode, $amountInt, $merchantOrderId, $apiKey, $signature)) {
+            // Log detail untuk debug
+            Log::warning('DuitKu Callback: Invalid Signature', [
+                'merchantOrderId' => $merchantOrderId,
+                'amount_received' => $amount,
+                'amount_int' => $amountInt,
+                'signature_received' => $signature,
+                'signature_expected' => hash_hmac('sha256', $merchantCode . $amountInt . $merchantOrderId, $apiKey),
+            ]);
             return response('SIGNATURE_VALIDATION_FAILED', 400);
         }
 
-        // Cari transaksi
         $transaction = WalletTransaction::where('payment_reference', $merchantOrderId)
             ->where('type', 'topup')
             ->first();
 
         if (!$transaction) {
-            // Transaksi tidak ditemukan - respond OK untuk stop retry
+            Log::warning('DuitKu Callback: Transaction Not Found', [
+                'merchantOrderId' => $merchantOrderId,
+            ]);
             return response('ORDER_NOT_FOUND');
         }
 
-        // IDEMPOTENCY: Jika status sudah success atau failed, ignore
         if ($transaction->status !== 'pending') {
+            Log::info('DuitKu Callback: Transaction Already Processed', [
+                'merchantOrderId' => $merchantOrderId,
+                'currentStatus' => $transaction->status,
+            ]);
             return response('OK');
         }
 
-        // Update status transaksi dan saldo wallet
-        DB::transaction(function () use ($transaction, $resultCode, $amount): void {
+        DB::transaction(function () use ($transaction, $resultCode, $amountInt, $reference, $paymentMethod, $issuerCode, $settlementDate): void {
             if ($resultCode === '00') {
-                // Sukses - update status dan tambah saldo
                 $transaction->update([
                     'status' => 'success',
                     'description' => 'Top-up via DuitKu - Berhasil',
                 ]);
 
-                // Increment saldo wallet menggunakan DB::table
                 $wallet = $transaction->wallet;
                 Wallet::where('id', $wallet->id)->update([
-                    'balance' => DB::raw("balance + {$amount}"),
+                    'balance' => DB::raw("balance + {$amountInt}"),
+                ]);
+                
+                Log::info('DuitKu Callback: Topup Success', [
+                    'merchantOrderId' => $transaction->payment_reference,
+                    'amount' => $amountInt,
+                    'reference' => $reference ?? null,
+                    'issuerCode' => $issuerCode ?? null,
+                    'settlementDate' => $settlementDate ?? null,
                 ]);
             } else {
-                // Gagal - update status saja, jangan ubah saldo
                 $transaction->update([
                     'status' => 'failed',
                     'description' => 'Top-up via DuitKu - Gagal (resultCode: ' . $resultCode . ')',
                 ]);
+                
+                Log::info('DuitKu Callback: Topup Failed', [
+                    'merchantOrderId' => $transaction->payment_reference,
+                    'resultCode' => $resultCode,
+                ]);
             }
         });
 
-        // Response untuk DuitKu
         return response('OK');
     }
 
-    // Cek status transaksi (untuk polling dari frontend)
-    public function checkStatus(Request $request, string $merchantOrderId)
+    public function checkStatus(Request $request, string $merchantOrderId): JsonResponse
     {
         $wallet = $this->getOrCreateWallet($request->user()->id);
 
-        // Cari transaksi yang milik user ini
         $transaction = WalletTransaction::where('payment_reference', $merchantOrderId)
             ->where('wallet_id', $wallet->id)
             ->where('type', 'topup')
@@ -215,8 +248,7 @@ class WalletController extends Controller
         ]);
     }
 
-    // Riwayat transaksi wallet (paginated)
-    public function transactions(Request $request)
+    public function transactions(Request $request): JsonResponse
     {
         $wallet = $this->getOrCreateWallet($request->user()->id);
 
@@ -228,6 +260,170 @@ class WalletController extends Controller
             'success' => true,
             'message' => 'Riwayat transaksi berhasil diambil',
             'data' => $transactions,
+        ]);
+    }
+
+    /**
+     * Ambil daftar payment methods yang tersedia dari DuitKu
+     * Endpoint: GET /api/payment-methods
+     */
+    public function getPaymentMethods(): JsonResponse
+    {
+        $response = $this->duitkuService->getPaymentMethods();
+
+        if (isset($response['responseCode']) && $response['responseCode'] !== '00') {
+            return response()->json([
+                'success' => false,
+                'message' => $response['responseMessage'] ?? 'Gagal mengambil payment methods',
+            ], 400);
+        }
+
+        // Format response dari DuitKu
+        $paymentMethods = [];
+        if (isset($response['paymentFee']) && is_array($response['paymentFee'])) {
+            foreach ($response['paymentFee'] as $method) {
+                $paymentMethods[] = [
+                    'code' => $method['paymentMethod'] ?? null,
+                    'name' => $method['paymentName'] ?? null,
+                    'image' => $method['paymentImage'] ?? null,
+                    'fee' => isset($method['totalFee']) ? (int) $method['totalFee'] : 0,
+                ];
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Payment methods berhasil diambil',
+            'data' => $paymentMethods,
+        ]);
+    }
+
+    /**
+     * Check transaction status dari DuitKu (public endpoint)
+     * Endpoint: GET /api/wallet/check-status/{merchantOrderId}
+     */
+    public function checkDuitkuStatus(string $merchantOrderId): JsonResponse
+    {
+        $response = $this->duitkuService->checkTransactionStatus($merchantOrderId);
+
+        if (isset($response['responseCode']) && $response['responseCode'] !== '00') {
+            return response()->json([
+                'success' => false,
+                'message' => $response['responseMessage'] ?? 'Gagal mengambil status transaksi',
+            ], 400);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Status transaksi berhasil diambil',
+            'data' => [
+                'merchantOrderId' => $response['merchantOrderId'] ?? $merchantOrderId,
+                'reference' => $response['reference'] ?? null,
+                'amount' => isset($response['amount']) ? (int) $response['amount'] : null,
+                'fee' => isset($response['fee']) ? (int) $response['fee'] : null,
+                'statusCode' => $response['statusCode'] ?? null,
+                'statusMessage' => $response['statusMessage'] ?? null,
+            ],
+        ]);
+    }
+
+    /**
+     * Sync topup status dari DuitKu — fallback kalau callback miss.
+     * Cek status transaksi langsung ke DuitKu, lalu update saldo kalau berhasil.
+     */
+    public function syncTopup(Request $request, string $merchantOrderId): JsonResponse
+    {
+        $wallet = $this->getOrCreateWallet($request->user()->id);
+
+        $transaction = WalletTransaction::where('payment_reference', $merchantOrderId)
+            ->where('wallet_id', $wallet->id)
+            ->where('type', 'topup')
+            ->first();
+
+        if (!$transaction) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Transaksi tidak ditemukan',
+            ], 404);
+        }
+
+        if ($transaction->status !== 'pending') {
+            return response()->json([
+                'success' => true,
+                'message' => 'Transaksi sudah diproses',
+                'data' => [
+                    'merchantOrderId' => $transaction->payment_reference,
+                    'status' => $transaction->status,
+                ],
+            ]);
+        }
+
+        // Cek status ke DuitKu
+        $duitkuStatus = $this->duitkuService->checkTransactionStatus($merchantOrderId);
+
+        Log::info('DuitKu Sync Request', [
+            'merchantOrderId' => $merchantOrderId,
+            'duitkuStatus' => $duitkuStatus,
+        ]);
+
+        $statusCode = $duitkuStatus['statusCode'] ?? $duitkuStatus['responseCode'] ?? null;
+
+        // SUCCESS — update saldo
+        if ($statusCode === '00') {
+            DB::transaction(function () use ($transaction, $duitkuStatus) {
+                $transaction->update([
+                    'status' => 'success',
+                    'description' => 'Top-up via DuitKu - Berhasil (sync)',
+                ]);
+
+                $wallet = $transaction->wallet;
+                Wallet::where('id', $wallet->id)->update([
+                    'balance' => DB::raw("balance + {$transaction->amount}"),
+                ]);
+            });
+
+            Log::info('DuitKu Sync: Topup Success', [
+                'merchantOrderId' => $merchantOrderId,
+                'amount' => $transaction->amount,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Top-up berhasil disinkronkan',
+                'data' => [
+                    'merchantOrderId' => $transaction->payment_reference,
+                    'status' => 'success',
+                    'amount' => $transaction->amount,
+                ],
+            ]);
+        }
+
+        // GAGAL — tetap update status
+        if ($statusCode !== null && $statusCode !== '00') {
+            $transaction->update([
+                'status' => 'failed',
+                'description' => 'Top-up via DuitKu - Gagal (resultCode: ' . $statusCode . ') - sync',
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Status transaksi berhasil disinkronkan',
+                'data' => [
+                    'merchantOrderId' => $transaction->payment_reference,
+                    'status' => 'failed',
+                    'resultCode' => $statusCode,
+                ],
+            ]);
+        }
+
+        // Status tidak bisa dibaca — masih pending
+        return response()->json([
+            'success' => true,
+            'message' => 'Status masih pending di DuitKu',
+            'data' => [
+                'merchantOrderId' => $transaction->payment_reference,
+                'status' => 'pending',
+            ],
         ]);
     }
 }

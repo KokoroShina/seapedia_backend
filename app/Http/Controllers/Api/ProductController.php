@@ -33,7 +33,8 @@ class ProductController extends Controller
                 'description' => $product->description,
                 'price' => $product->price,
                 'stock' => $product->stock,
-                'image' => $product->image,
+                'image' => $product->image ? '/storage/' . $product->image : null,
+                'image_url' => $product->imageUrl,
             ];
         });
 

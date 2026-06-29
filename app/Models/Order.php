@@ -42,4 +42,14 @@ class Order extends Model
     {
         return $this->hasOne(Delivery::class);
     }
+
+    public function voucher()
+    {
+        return $this->belongsTo(Voucher::class);
+    }
+
+    public function promo()
+    {
+        return $this->belongsTo(Promo::class);
+    }
 }
