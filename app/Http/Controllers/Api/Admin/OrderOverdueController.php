@@ -21,6 +21,50 @@ class OrderOverdueController extends Controller
     ) {}
 
     /**
+     * GET /api/admin/orders/overdue
+     * Ambil daftar pesanan yang overdue (tanpa proses).
+     */
+    public function index(): JsonResponse
+    {
+        $simulatedNow = $this->timeService->now();
+
+        $overdueDeliveries = Delivery::with(['order.buyer:id,username', 'order.store:id,name', 'driver:id,username'])
+            ->where('due_at', '<', $simulatedNow)
+            ->whereIn('status', ['available', 'taken'])
+            ->whereHas('order', function ($query) {
+                $query->whereIn('status', ['sedang_dikirim', 'menunggu_pengirim']);
+            })
+            ->get()
+            ->map(function ($delivery) {
+                $order = $delivery->order;
+                $hoursOverdue = now()->diffInHours($delivery->due_at);
+
+                return [
+                    'delivery_id' => $delivery->id,
+                    'order_id' => $order->id,
+                    'buyer_name' => $order->buyer?->username ?? 'Unknown',
+                    'store_name' => $order->store?->name ?? 'Unknown',
+                    'driver_name' => $delivery->driver?->username ?? 'Belum ada driver',
+                    'total' => $order->total,
+                    'status' => $order->status,
+                    'delivery_status' => $delivery->status,
+                    'due_at' => $delivery->due_at?->toIso8601String(),
+                    'hours_overdue' => $hoursOverdue,
+                    'delivery_method' => $order->delivery_method ?? 'regular',
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Daftar pesanan overdue',
+            'data' => [
+                'count' => $overdueDeliveries->count(),
+                'overdue_orders' => $overdueDeliveries,
+            ],
+        ]);
+    }
+
+    /**
      * POST /api/admin/orders/check-overdue
      * Jalankan pengecekan dan auto-return untuk order yang overdue.
      */

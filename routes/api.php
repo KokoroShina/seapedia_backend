@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\Admin\PromoController;
 use App\Http\Controllers\Api\Admin\VoucherController;
 use App\Http\Controllers\Api\Admin\TimeSimulationController;
 use App\Http\Controllers\Api\Admin\OrderOverdueController;
+use App\Http\Controllers\Api\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\ForgotPasswordController;
@@ -19,7 +20,9 @@ use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\Seller\StoreController as SellerStoreController;
 use App\Http\Controllers\Api\Seller\ProductController as SellerProductController;
 use App\Http\Controllers\Api\Seller\OrderController as SellerOrderController;
+use App\Http\Controllers\Api\Seller\DashboardController as SellerDashboardController;
 use App\Http\Controllers\Api\Driver\DeliveryController as DriverDeliveryController;
+use App\Http\Controllers\Api\Driver\DashboardController as DriverDashboardController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -66,6 +69,9 @@ Route::middleware(['auth:sanctum', 'role:seller'])->prefix('seller')->group(func
     Route::get('/store', [SellerStoreController::class, 'show']);
     Route::post('/store', [SellerStoreController::class, 'store']);
     Route::put('/store', [SellerStoreController::class, 'update']);
+
+    // Dashboard stats
+    Route::get('/dashboard', [SellerDashboardController::class, 'index']);
 
     Route::get('/products', [SellerProductController::class, 'index']);
     Route::get('/products/{id}', [SellerProductController::class, 'show']);
@@ -120,6 +126,14 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // Admin - Voucher & Promo Management (protected, auth:sanctum + role:admin)
 Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(function () {
+    // Dashboard stats
+    Route::get('/stats', [AdminDashboardController::class, 'stats']);
+    Route::get('/users', [AdminDashboardController::class, 'users']);
+    Route::get('/stores', [AdminDashboardController::class, 'stores']);
+    Route::get('/products', [AdminDashboardController::class, 'products']);
+    Route::get('/orders', [AdminDashboardController::class, 'orders']);
+    Route::get('/deliveries', [AdminDashboardController::class, 'deliveries']);
+
     // Category Management
     Route::apiResource('categories', AdminCategoryController::class);
 
@@ -132,11 +146,15 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     Route::post('/time-simulation/reset', [TimeSimulationController::class, 'reset']);
 
     // Overdue Order Check
+    Route::get('/orders/overdue', [OrderOverdueController::class, 'index']);
     Route::post('/orders/check-overdue', [OrderOverdueController::class, 'checkOverdue']);
 });
 
 // Driver endpoints
 Route::middleware(['auth:sanctum', 'role:driver'])->prefix('driver')->group(function () {
+    // Dashboard stats
+    Route::get('/dashboard', [DriverDashboardController::class, 'index']);
+
     Route::get('/jobs', [DriverDeliveryController::class, 'availableJobs']);
     Route::get('/jobs/history', [DriverDeliveryController::class, 'history']);
     Route::get('/jobs/active', [DriverDeliveryController::class, 'active']);

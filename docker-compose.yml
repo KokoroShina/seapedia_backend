@@ -1,0 +1,48 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: seapedia-app
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - .:/var/www/html
+      - ./docker/nginx/default.conf:/etc/nginx/sites-available/default
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - seapedia
+    environment:
+      - PHP_MEMORY_LIMIT=256M
+
+  mysql:
+    image: mysql:8.0
+    container_name: seapedia-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: seapedia_db
+      MYSQL_USER: seapedia_user
+      MYSQL_PASSWORD: seapedia_pass
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - seapedia
+
+networks:
+  seapedia:
+    driver: bridge
+
+volumes:
+  mysql_data:

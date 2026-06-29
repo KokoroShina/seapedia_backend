@@ -62,15 +62,27 @@ class AuthController extends Controller
         }
 
         $roles = $user->roles->pluck('name')->toArray();
-        $activeRole = $roles[0];
+        $activeRole = $roles[0] ?? 'buyer';
 
         $token = $user->createToken('auth_token', [$activeRole])->plainTextToken;
+
+        // Format user data dengan username
+        $userData = [
+            'id' => $user->id,
+            'username' => $user->username,
+            'email' => $user->email,
+            'roles' => $user->roles->map(function($role) {
+                return ['id' => $role->id, 'name' => $role->name];
+            })->toArray(),
+            'created_at' => $user->created_at,
+            'updated_at' => $user->updated_at,
+        ];
 
         return response()->json([
             'success' => true,
             'message' => 'Login berhasil',
             'data'    => [
-                'user'        => $user,
+                'user'        => $userData,
                 'roles'       => $roles,
                 'active_role' => $activeRole,
                 'token'       => $token,

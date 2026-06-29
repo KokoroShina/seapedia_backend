@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\SystemSetting;
 use Carbon\Carbon;
+use Carbon\CarbonImmutable;
+use Illuminate\Support\Carbon as SupportCarbon;
 
 class SystemTimeService
 {
@@ -16,7 +18,7 @@ class SystemTimeService
     public function getOffsetHours(): int
     {
         $setting = SystemSetting::where('key', self::TIME_OFFSET_KEY)->first();
-        
+
         if (!$setting) {
             return 0;
         }
@@ -30,7 +32,11 @@ class SystemTimeService
      */
     public function now(): Carbon
     {
-        return now()->addHours($this->getOffsetHours());
+        // Handle both Carbon and CarbonImmutable from Laravel's now()
+        $current = SupportCarbon::now();
+        $offset = $this->getOffsetHours();
+
+        return $current->copy()->addHours($offset);
     }
 
     /**

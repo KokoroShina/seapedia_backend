@@ -1,0 +1,189 @@
+# Docker Setup - Seapedia Backend
+
+## Struktur File
+
+```
+├── Dockerfile              # Untuk development (local Docker)
+├── Dockerfile.railway       # Untuk Railway deployment
+├── docker-compose.yml      # Development environment
+├── railway.json            # Railway configuration
+├── railway-build.sh        # Build script untuk Railway
+├── .env.railway           # Template environment untuk Railway
+├── docker/
+│   ├── nginx/
+│   │   └── default.conf   # Nginx configuration
+│   └── mysql/
+│       └── init.sql        # MySQL initialization (optional)
+└── .dockerignore          # Files yang di-exclude dari Docker build
+```
+
+## Development (Local)
+
+### Prerequisites
+- Docker Desktop installed
+- Docker Compose v2
+
+### Setup
+
+1. **Clone & Setup Environment**
+   ```bash
+   cp .env.example .env
+   # Edit .env untuk development
+   ```
+
+2. **Start Services**
+   ```bash
+   docker-compose up -d --build
+   ```
+
+3. **Setup Database**
+   ```bash
+   # Generate app key
+   docker-compose exec app php artisan key:generate
+
+   # Run migrations
+   docker-compose exec app php artisan migrate
+   ```
+
+4. **Install Dependencies (jika perlu)**
+   ```bash
+   docker-compose exec app composer install
+   ```
+
+5. **Stop Services**
+   ```bash
+   docker-compose down
+   ```
+
+### Access
+- App: http://localhost:80
+- MySQL: localhost:3307
+
+### Useful Commands
+```bash
+# View logs
+docker-compose logs -f app
+
+# Restart app
+docker-compose restart app
+
+# Shell into container
+docker-compose exec app sh
+
+# Rebuild from scratch
+docker-compose down -v && docker-compose up -d --build
+```
+
+## Railway Deployment
+
+### Prerequisites
+- Railway CLI installed (`npm i -g @railway/cli`)
+- Railway account (https://railway.app)
+- Git repository
+
+### Setup MySQL on Railway
+
+1. **Create Railway Project**
+   ```bash
+   railway init
+   railway add
+   ```
+
+2. **Add MySQL Database**
+   ```bash
+   railway add --database mysql
+   ```
+
+3. **Set Environment Variables**
+   Get the connection details from Railway dashboard:
+   - `DB_HOST`
+   - `DB_PORT`
+   - `DB_DATABASE`
+   - `DB_USERNAME`
+   - `DB_PASSWORD`
+
+4. **Set App Environment Variables** (via Railway dashboard)
+   ```
+   APP_NAME=Seapedia
+   APP_ENV=production
+   APP_KEY=base64:YOUR_GENERATED_KEY
+   APP_DEBUG=false
+   APP_URL=https://seapedia-backend.up.railway.app
+
+   # Payment Gateway
+   DUITKU_MERCHANT_CODE=your_merchant_code
+   DUITKU_API_KEY=your_api_key
+   DUITKU_CALLBACK_URL=https://seapedia-backend.up.railway.app/api/wallet/topup/callback
+   ```
+
+### Deploy
+
+1. **Login ke Railway**
+   ```bash
+   railway login
+   ```
+
+2. **Link Project**
+   ```bash
+   railway link
+   ```
+
+3. **Deploy**
+   ```bash
+   railway up
+   ```
+
+4. **Setup Database**
+   ```bash
+   railway run php artisan key:generate --force
+   railway run php artisan migrate --force
+   ```
+
+5. **Check Logs**
+   ```bash
+   railway logs
+   ```
+
+### Alternative: Deploy via GitHub
+
+1. Push code ke GitHub
+2. Connect repository di Railway dashboard
+3. Railway otomatis build & deploy dari `Dockerfile.railway`
+
+### Environment Variables untuk Production
+
+| Variable | Description |
+|----------|-------------|
+| `APP_KEY` | Laravel application key |
+| `APP_ENV` | `production` |
+| `APP_DEBUG` | `false` |
+| `APP_URL` | Railway app URL |
+| `DB_HOST` | MySQL host dari Railway |
+| `DB_PORT` | MySQL port (default 3306) |
+| `DB_DATABASE` | Database name |
+| `DB_USERNAME` | Database username |
+| `DB_PASSWORD` | Database password |
+| `DUITKU_MERCHANT_CODE` | Duitku merchant code |
+| `DUITKU_API_KEY` | Duitku API key |
+
+## Troubleshooting
+
+### MySQL Connection Failed
+Pastikan MySQL container sudah healthy sebelum app container start.
+
+### Permission Denied
+```bash
+docker-compose exec app chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+```
+
+### Clear Cache
+```bash
+docker-compose exec app php artisan config:clear
+docker-compose exec app php artisan cache:clear
+```
+
+## Tips
+
+1. **Speed Up Development**: Gunakan volumes untuk code syncing
+2. **Production**: Build image dulu, jangan pakai volumes
+3. **Monitoring**: Cek Railway dashboard untuk logs & metrics

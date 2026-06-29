@@ -30,7 +30,7 @@ class OrderController extends Controller
             ], 404);
         }
 
-        $query = Order::with('buyer:id,name,username')
+        $query = Order::with('buyer:id,username')
             ->where('store_id', $store->id)
             ->withCount('items')
             ->orderBy('created_at', 'desc');
@@ -62,7 +62,7 @@ class OrderController extends Controller
         }
 
         $order = Order::with([
-            'buyer:id,name,username,email',
+            'buyer:id,username,email',
             'items',
             'address',
             'statusHistories' => function ($query) {
@@ -147,7 +147,7 @@ class OrderController extends Controller
 
         // Load relasi untuk response
         $order->load([
-            'buyer:id,name,username,email',
+            'buyer:id,username,email',
             'items',
             'address',
             'delivery',

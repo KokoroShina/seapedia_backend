@@ -20,7 +20,7 @@ class DeliveryController extends Controller
     {
         $deliveries = Delivery::with([
             'order:id,buyer_id,store_id,address_id,delivery_method,total,status',
-            'order.address:id,address,recipient_name,phone'
+            'order.address:id,address'
         ])
             ->where('status', 'available')
             ->orderBy('created_at', 'desc')
@@ -96,7 +96,7 @@ class DeliveryController extends Controller
         // Load relasi untuk response
         $delivery->load([
             'order.address',
-            'driver:id,name,username'
+            'driver:id,username'
         ]);
 
         return response()->json([
@@ -188,7 +188,7 @@ class DeliveryController extends Controller
         // Load relasi untuk response
         $delivery->load([
             'order.address',
-            'driver:id,name,username'
+            'driver:id,username'
         ]);
 
         return response()->json([
@@ -207,7 +207,7 @@ class DeliveryController extends Controller
 
         $deliveries = Delivery::with([
             'order:id,total,delivery_method,status',
-            'order.address:id,recipient_name,address'
+            'order.address:id,address'
         ])
             ->where('driver_id', $driverId)
             ->orderBy('taken_at', 'desc')
@@ -229,7 +229,7 @@ class DeliveryController extends Controller
 
         $delivery = Delivery::with([
             'order.address',
-            'order.buyer:id,name,username,phone'
+            'order.buyer:id,username,phone'
         ])
             ->where('driver_id', $driverId)
             ->where('status', 'taken')

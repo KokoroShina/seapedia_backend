@@ -1,0 +1,43 @@
+FROM php:8.3-fpm-alpine
+
+LABEL maintainer="Seapedia Developer"
+
+# Install system dependencies
+RUN apk add --no-cache \
+    nginx \
+    supervisor \
+    curl \
+    git \
+    unzip \
+    libzip-dev \
+    oniguruma-dev \
+    mysql-client \
+    && docker-php-ext-install pdo_mysql mbstring zip bcmath pcntl \
+    && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS
+
+# Install Composer
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+# Setup nginx
+RUN echo "daemon off;" >> /etc/nginx/nginx.conf
+
+WORKDIR /var/www/html
+
+# Copy application
+COPY . /var/www/html
+
+# Install dependencies and optimize
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress \
+    && chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
+    && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+
+# Copy nginx config
+COPY docker/nginx/default.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost/ || exit 1
+
+CMD ["sh", "-c", "php-fpm -D && nginx"]
