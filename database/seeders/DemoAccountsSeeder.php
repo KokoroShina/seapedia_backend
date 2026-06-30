@@ -47,15 +47,22 @@ class DemoAccountsSeeder extends Seeder
             return;
         }
 
-        // Create user
+        // Create user (use unique username to avoid conflicts)
+        $uniqueUsername = $roleName . '_user';
+        $counter = 1;
+        while (User::where('username', $uniqueUsername)->exists()) {
+            $uniqueUsername = $roleName . '_user_' . $counter;
+            $counter++;
+        }
+
         $user = User::create([
-            'username' => $roleName,
+            'username' => $uniqueUsername,
             'email' => $email,
             'password' => Hash::make('seapedia123'),
         ]);
 
         $user->roles()->attach($role->id);
 
-        $this->command->info("Created: {$email} / seapedia123");
+        $this->command->info("Created: {$email} / seapedia123 (username: {$uniqueUsername})");
     }
 }

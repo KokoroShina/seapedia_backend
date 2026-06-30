@@ -414,7 +414,7 @@ GET /api/documentation
 
 ```
 Development: http://localhost:8000/api
-Production: https://your-domain.com/api
+Production: https://seapediabackend-production-6b92.up.railway.app/api
 ```
 
 ### Authentication
@@ -604,8 +604,8 @@ seapedia_backend/
 
 ## 📧 Contact
 
-- **Email**: dev@seapedia.com
-- **Issues**: https://github.com/seapedia/backend/issues
+- **Email**: raehanathaiya@.com
+- **Issues**: https://github.com/seapedia_backend
 
 ---
 
