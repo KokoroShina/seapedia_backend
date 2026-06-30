@@ -41,4 +41,4 @@ EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -f http://localhost/ || exit 1
 
-CMD ["sh", "-c", "php-fpm -D && nginx"]
+CMD ["sh", "-c", "sed -i \"s/listen 80;/listen ${PORT:-80};/\" /etc/nginx/http.d/default.conf && php-fpm -D && nginx"]
