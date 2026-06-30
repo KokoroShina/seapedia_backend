@@ -130,7 +130,7 @@ class CheckoutController extends Controller
         }
 
         $deliveryFee = self::DELIVERY_FEES[$validated['delivery_method']];
-        $ppn = round($subtotal * 0.12);
+        $ppn = round(($subtotal - $discountAmount) * 0.12);
         $total = $subtotal + $deliveryFee + $ppn - $discountAmount;
 
         $wallet = $this->getOrCreateWallet($user->id);
